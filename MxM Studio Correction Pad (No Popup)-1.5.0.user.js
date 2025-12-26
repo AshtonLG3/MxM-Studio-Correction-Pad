@@ -271,8 +271,10 @@
       font-family:system-ui;
     `;
 
-    panel.innerHTML = `
-      <div id="cpad-header" style="
+    // --- Header Construction ---
+    const header = document.createElement('div');
+    header.id = 'cpad-header';
+    header.style.cssText = `
         padding:14px;
         cursor:move;
         background:${MXM_THEME.bgSoft};
@@ -282,52 +284,72 @@
         justify-content:space-between;
         align-items:center;
         color:${MXM_THEME.accentStrong};
-      ">
-        <span>Correction Pad</span>
-        <button id="cpad-close"
-          style="background:none;border:none;color:${MXM_THEME.accent};
-          font-size:20px;cursor:pointer;font-weight:bold;">&times;</button>
-      </div>
-
-      <div style="padding:14px">
-        <div id="cpad-rows"></div>
-
-        <div style="display:flex;gap:10px;margin-top:14px">
-          <button id="cpad-add" style="
-            flex:1;padding:10px;border-radius:8px;
-            background:${MXM_THEME.bgHover};
-            color:${MXM_THEME.text};
-            border:1px solid ${MXM_THEME.border};
-            cursor:pointer;font-weight:600;">+ Add</button>
-
-          <button id="cpad-replace" style="
-            flex:2;padding:10px;border-radius:8px;
-            background:${MXM_THEME.bgHover};
-            color:${MXM_THEME.accentStrong};
-            border:1px solid ${MXM_THEME.border};
-            font-weight:700;
-            box-shadow:0 2px 6px rgba(0,0,0,0.3);
-            cursor:pointer;">Replace All</button>
-
-          <button id="cpad-clear" style="
-            flex:0.7;padding:10px;border-radius:8px;
-            background:${MXM_THEME.bgHover};
-            color:${MXM_THEME.textSoft};
-            border:1px solid ${MXM_THEME.border};
-            cursor:pointer;">Clear</button>
-        </div>
-
-        <div id="cpad-status" style="
-          margin-top:12px;font-size:12px;color:${MXM_THEME.accent};font-weight:500;">
-          Ready.
-        </div>
-      </div>
     `;
 
-    const rowsWrap = panel.querySelector('#cpad-rows');
+    const title = document.createElement('span');
+    title.textContent = 'Correction Pad';
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.id = 'cpad-close';
+    closeBtn.textContent = '×'; // Using standard char instead of HTML entity
+    closeBtn.style.cssText = `background:none;border:none;color:${MXM_THEME.accent};font-size:20px;cursor:pointer;font-weight:bold;`;
 
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    // --- Body Construction ---
+    const body = document.createElement('div');
+    body.style.padding = '14px';
+
+    const rowsWrap = document.createElement('div');
+    rowsWrap.id = 'cpad-rows';
+    body.appendChild(rowsWrap);
+
+    // Buttons Container
+    const btnGroup = document.createElement('div');
+    btnGroup.style.cssText = 'display:flex;gap:10px;margin-top:14px';
+
+    // Helper to make buttons
+    const makeBtn = (id, txt, flex, bg, color, bold) => {
+        const b = document.createElement('button');
+        b.id = id;
+        b.textContent = txt;
+        b.style.cssText = `
+            flex:${flex};padding:10px;border-radius:8px;
+            background:${bg};
+            color:${color};
+            border:1px solid ${MXM_THEME.border};
+            cursor:pointer;
+            ${bold ? 'font-weight:700;' : ''}
+            ${bold ? 'box-shadow:0 2px 6px rgba(0,0,0,0.3);' : ''}
+        `;
+        return b;
+    };
+
+    const btnAdd = makeBtn('cpad-add', '+ Add', '1', MXM_THEME.bgHover, MXM_THEME.text, false);
+    const btnRep = makeBtn('cpad-replace', 'Replace All', '2', MXM_THEME.bgHover, MXM_THEME.accentStrong, true);
+    const btnClr = makeBtn('cpad-clear', 'Clear', '0.7', MXM_THEME.bgHover, MXM_THEME.textSoft, false);
+
+    btnGroup.appendChild(btnAdd);
+    btnGroup.appendChild(btnRep);
+    btnGroup.appendChild(btnClr);
+    body.appendChild(btnGroup);
+
+    // Status Area
+    const status = document.createElement('div');
+    status.id = 'cpad-status';
+    status.textContent = 'Ready.';
+    status.style.cssText = `margin-top:12px;font-size:12px;color:${MXM_THEME.accent};font-weight:500;`;
+    body.appendChild(status);
+
+    panel.appendChild(body);
+
+    // --- Logic for Rows (DOM based) ---
     function drawRows() {
-      rowsWrap.innerHTML = '';
+      rowsWrap.innerHTML = ''; // This is safe(r) as we clear it, but let's do it clean
+      while(rowsWrap.firstChild) rowsWrap.removeChild(rowsWrap.firstChild);
+
       const st = loadState();
 
       st.pairs.forEach((p, i) => {
@@ -350,11 +372,21 @@
             cursor: text !important;
         `;
 
-        row.innerHTML = `
-          <textarea rows="1" placeholder="Find..." style="${inputStyle}"></textarea>
-          <textarea rows="1" placeholder="Replace..." style="${inputStyle}"></textarea>
+        const from = document.createElement('textarea');
+        from.rows = 1;
+        from.placeholder = 'Find...';
+        from.style.cssText = inputStyle;
+        from.value = p.from;
 
-          <button style="
+        const to = document.createElement('textarea');
+        to.rows = 1;
+        to.placeholder = 'Replace...';
+        to.style.cssText = inputStyle;
+        to.value = p.to;
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '×';
+        delBtn.style.cssText = `
             background:none;
             border:none;
             color:${MXM_THEME.accent};
@@ -362,17 +394,12 @@
             line-height:1;
             cursor:pointer;
             padding-top:2px;
-          ">&times;</button>
         `;
 
-        const [from, to] = row.querySelectorAll('textarea');
-        from.value = p.from;
-        to.value = p.to;
-
+        // Event Listeners for inputs
         [from, to].forEach(el => {
             el.addEventListener('keydown', e => e.stopPropagation());
             el.addEventListener('mousedown', e => e.stopPropagation());
-
             el.onfocus = () => {
                 el.style.borderColor = MXM_THEME.accentStrong;
                 el.style.boxShadow = `0 0 0 3px rgba(212,175,55,.35)`;
@@ -383,16 +410,19 @@
             };
         });
 
-        row.querySelector('button').onclick = () => {
+        from.oninput = () => { autoResize(from); st.pairs[i].from = from.value; saveState(st); };
+        to.oninput = () => { autoResize(to); st.pairs[i].to = to.value; saveState(st); };
+
+        delBtn.onclick = () => {
           st.pairs.splice(i, 1);
           if (!st.pairs.length) st.pairs.push({ from: '', to: '' });
           saveState(st);
           drawRows();
         };
 
-        from.oninput = () => { autoResize(from); st.pairs[i].from = from.value; saveState(st); };
-        to.oninput = () => { autoResize(to); st.pairs[i].to = to.value; saveState(st); };
-
+        row.appendChild(from);
+        row.appendChild(to);
+        row.appendChild(delBtn);
         rowsWrap.appendChild(row);
 
         autoResize(from);
@@ -402,27 +432,27 @@
 
     drawRows();
 
-    panel.querySelector('#cpad-add').onclick = () => {
+    // --- Button Actions ---
+    btnAdd.onclick = () => {
       const st = loadState();
       st.pairs.push({ from: '', to: '' });
       saveState(st);
       drawRows();
     };
 
-    panel.querySelector('#cpad-clear').onclick = () => {
+    btnClr.onclick = () => {
       const st = loadState();
       st.pairs = [{ from: '', to: '' }];
       saveState(st);
       drawRows();
-      panel.querySelector('#cpad-status').textContent = 'Cleared.';
+      status.textContent = 'Cleared.';
     };
 
-    panel.querySelector('#cpad-close').onclick = () => togglePanel(false);
+    closeBtn.onclick = () => togglePanel(false);
 
     // PATCHED: Replaced singular check with plural iteration
-    panel.querySelector('#cpad-replace').onclick = () => {
+    btnRep.onclick = () => {
       const editors = findEditors();
-      const status = panel.querySelector('#cpad-status');
       
       if (!editors || editors.length === 0) {
         status.textContent = 'No editable field detected.';
@@ -455,7 +485,7 @@
       }
     };
 
-    const header = panel.querySelector('#cpad-header');
+    // --- Draggable Logic ---
     let drag = false, sx, sy, ox, oy;
 
     header.onmousedown = e => {
