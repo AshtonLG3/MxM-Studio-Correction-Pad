@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MxM Studio Correction Pad (No Popup)
 // @namespace    mxm-tools
-// @version      1.5.0
+// @version      1.6.5
 // @description  Vision-accessible Correction Pad with draggable UI, bulk replacements, and SPA-friendly route detection.
 // @match        https://curators.musixmatch.com/*
 // @match        https://curators-beta.musixmatch.com/*
