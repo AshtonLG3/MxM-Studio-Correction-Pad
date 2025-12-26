@@ -1,0 +1,12 @@
+{
+  "name": "MxM Studio Correction Pad",
+  "variant": "No Popup",
+  "version": "1.5.0",
+  "description": "Draggable Correction Pad for Musixmatch Studio with theme, route awareness, and persistent replacements.",
+  "entry": "MxM Studio Correction Pad (No Popup)-1.5.0.user.js",
+  "matches": [
+    "https://curators.musixmatch.com/*",
+    "https://curators-beta.musixmatch.com/*"
+  ],
+  "stateKey": "mxmCorrectionPad.session.v6"
+}
