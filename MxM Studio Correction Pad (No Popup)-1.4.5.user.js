@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MxM Studio Correction Pad (No Popup)
 // @namespace    mxm-tools
-// @version      1.4.4
+// @version      1.4.5
 // @description  Combines the robust replacement logic of v1.0 with the SPA features and UI of v1.3. Draggable Button & Panel. Visible Cursor. No Clear Confirmation.
 // @match        https://curators.musixmatch.com/*
 // @match        https://curators-beta.musixmatch.com/*
@@ -15,6 +15,11 @@
   const STATE_KEY = 'mxmCorrectionPad.session.v4';
   const BTN_ID = 'mxm-cpad-btn';
   const PANEL_ID = 'mxm-cpad-panel';
+  const MXM_THEME = {
+    success: '#8f8',
+    danger: '#ff5353',
+    textDim: '#ccc'
+  };
 
   /* -------------------- STATE -------------------- */
   function loadState() {
@@ -34,21 +39,30 @@
     sessionStorage.setItem(STATE_KEY, JSON.stringify(s));
   }
 
-  /* -------------------- EDITOR LOGIC -------------------- */
-  function findEditor() {
-    const candidates = [...document.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"]')];
+  /* ===================== EDITOR DETECTION ===================== */
+
+  function findEditors() {
+    // Expanded selector to catch inputs often used in Sync mode lists
+    const candidates = [...document.querySelectorAll(
+      'textarea, [contenteditable="true"], [role="textbox"], input[type="text"]'
+    )];
+
     const visible = candidates.filter(el => {
+      // Ignore our own inputs (Correction Pad)
+      if (el.closest('#' + PANEL_ID)) return false;
+
       const r = el.getBoundingClientRect();
-      return r.width > 200 && r.height > 100;
+      
+      // Filter out invisible/tiny elements
+      if (r.width < 50 || r.height < 10) return false;
+
+      // Logic:
+      // 1. "Big" Editor (Studio Mode): usually > 200px wide, > 80px high
+      // 2. "Line" Input (Sync Mode): usually > 150px wide, but small height (approx 20-40px)
+      return r.width > 150 && r.height > 18; 
     });
 
-    if (!visible.length) return null;
-
-    return visible.sort((a, b) => {
-        const ra = a.getBoundingClientRect();
-        const rb = b.getBoundingClientRect();
-        return (rb.width * rb.height) - (ra.width * ra.height);
-    })[0];
+    return visible; // Returns an ARRAY of all valid inputs now
   }
 
   function readEditor(el) {
@@ -56,36 +70,39 @@
   }
 
   function writeEditor(el, text) {
-    el.focus();
+    // Try standard value setter first (for inputs/textareas)
     if (el.value !== undefined) {
-      const prototype = Object.getPrototypeOf(el);
-      const prototypeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
-
-      if (prototypeValueSetter) {
-          prototypeValueSetter.call(el, text);
+      const proto = Object.getPrototypeOf(el);
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      
+      if (setter) {
+          setter.call(el, text);
       } else {
           el.value = text;
       }
+      
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
-    } else {
-      try {
-          document.execCommand('selectAll', false, null);
-          document.execCommand('insertText', false, text);
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          return true;
-      } catch (e) {
-          console.error("MxM Pad: execCommand failed", e);
-          return false;
-      }
+    }
+
+    // Try contenteditable method
+    try {
+      el.focus();
+      // Select all content in this specific element
+      document.execCommand('selectAll', false, null);
+      document.execCommand('insertText', false, text);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
   /* -------------------- REPLACEMENT -------------------- */
   function applyReplacements(text, pairs) {
     let out = text;
-    const stats = [];
+    let total = 0;
 
     for (const p of pairs) {
       if (!p.from) continue;
@@ -93,10 +110,10 @@
       const count = parts.length - 1;
       if (count > 0) {
         out = parts.join(p.to);
-        stats.push({ from: p.from, count: count });
+        total += count;
       }
     }
-    return { out, stats };
+    return { out, total };
   }
 
   /* -------------------- UI -------------------- */
@@ -323,31 +340,39 @@
     };
 
     panel.querySelector('#cpad-replace').onclick = () => {
-      const editor = findEditor();
-      const statusEl = panel.querySelector('#cpad-status');
-
-      if (!editor) {
-          statusEl.textContent = '❌ Error: Could not find editor.';
-          statusEl.style.color = '#ff5353';
-          return;
+      // Use the new plural function
+      const editors = findEditors(); 
+      const status = panel.querySelector('#cpad-status');
+      
+      if (!editors || editors.length === 0) {
+        status.textContent = 'No editable field detected.';
+        status.style.color = MXM_THEME.danger;
+        return;
       }
 
-      const state = loadState();
-      const original = readEditor(editor);
-      const { out, stats } = applyReplacements(original, state.pairs);
+      const pairs = loadState().pairs;
+      let grandTotal = 0;
+      let fieldsUpdated = 0;
 
-      if (stats.length > 0) {
-        const success = writeEditor(editor, out);
-        if(success) {
-            const total = stats.reduce((sum, item) => sum + item.count, 0);
-            statusEl.textContent = `✅ Success! Replaced ${total} items.`;
-            statusEl.style.color = '#8f8';
-        } else {
-             statusEl.textContent = `❌ Write Failed. Check console.`;
-        }
+      // Loop through ALL detected fields (Sync lines or Main Editor)
+      editors.forEach(ed => {
+          const currentText = readEditor(ed);
+          const { out, total } = applyReplacements(currentText, pairs);
+          
+          if (total > 0) {
+              if (writeEditor(ed, out)) {
+                  grandTotal += total;
+                  fieldsUpdated++;
+              }
+          }
+      });
+
+      if (grandTotal > 0) {
+        status.textContent = `Success: ${grandTotal} replacements in ${fieldsUpdated} fields.`;
+        status.style.color = MXM_THEME.success;
       } else {
-        statusEl.textContent = '⚠️ No matches found.';
-        statusEl.style.color = '#fb8';
+        status.textContent = 'No matches found.';
+        status.style.color = MXM_THEME.textDim;
       }
     };
 
@@ -378,11 +403,11 @@
 
   /* -------------------- BOOT -------------------- */
   const bootInterval = setInterval(() => {
-    const editor = findEditor();
-    if (editor) {
-        clearInterval(bootInterval);
-        createButton();
-        if(loadState().open) renderPanel();
+    const editors = findEditors();
+    if (editors.length) {
+      clearInterval(bootInterval);
+      createButton();
+      if (loadState().open) renderPanel();
     }
   }, 1000);
 
