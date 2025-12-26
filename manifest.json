@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MxM Studio Correction Pad",
-  "version": "1.5.0",
+  "version": "1.6.5",
   "description": "Correction Pad with high-contrast Blue/Gold theme. Batch find and replace tool for Musixmatch Studio.",
   "author": "Richard Mangezi Muketa",
   "icons": {
