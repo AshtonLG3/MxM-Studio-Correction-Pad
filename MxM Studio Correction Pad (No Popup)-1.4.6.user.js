@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MxM Studio Correction Pad (No Popup)
 // @namespace    mxm-tools
-// @version      1.4.5
+// @version      1.4.6
 // @description  Combines the robust replacement logic of v1.0 with the SPA features and UI of v1.3. Draggable Button & Panel. Visible Cursor. No Clear Confirmation.
 // @match        https://curators.musixmatch.com/*
 // @match        https://curators-beta.musixmatch.com/*
@@ -402,13 +402,11 @@
   }
 
   /* -------------------- BOOT -------------------- */
-  const bootInterval = setInterval(() => {
-    const editors = findEditors();
-    if (editors.length) {
-      clearInterval(bootInterval);
-      createButton();
-      if (loadState().open) renderPanel();
+  (function boot() {
+    createButton();          // ALWAYS show UI
+    if (loadState().open) {
+      renderPanel();
     }
-  }, 1000);
+  })();
 
 })();
